@@ -12,7 +12,7 @@
 ;; See the License for the specific language governing permissions and
 ;; limitations under the License.
 
-(defproject org.immutant/transactions "2.1.11-SNAPSHOT"
+(defproject org.immutant/transactions "3.0.0-SNAPSHOT"
   :description "Provides support for distributed (XA) transactions."
   :plugins [[lein-modules "0.3.11"]]
 
