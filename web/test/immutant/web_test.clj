@@ -19,7 +19,7 @@
             [immutant.web          :refer :all]
             [immutant.web.internal.wunderboss :refer [create-defaults register-defaults]]
             [immutant.web.middleware :refer (wrap-session)]
-            [testing.web           :refer [get-body get-response hello handler file-response
+            [testing.web           :refer [get-body get-response hello hello-record handler file-response
                                            input-stream-response seq-response]]
             [testing.app]
             [testing.hello.service :as pedestal]
@@ -78,6 +78,10 @@
 
 (deftest run-accepts-a-var
   (run #'hello)
+  (is (= "hello" (get-body url))))
+
+(deftest run-accepts-a-ifn
+  (run hello-record)
   (is (= "hello" (get-body url))))
 
 (deftest run-accepts-an-http-handler
