@@ -122,9 +122,24 @@
       "/"
       path-info)))
 
-(defn- force-dispatch? [body]
-  (let [c (class body)]
-    (some #{File InputStream ISeq} (conj (ancestors c) c))))
+(defprotocol ForceDispatch
+  (force-dispatch? [this]))
+
+(extend-protocol ForceDispatch
+  File
+  (force-dispatch? [_] true)
+
+  InputStream
+  (force-dispatch? [_] true)
+
+  ISeq
+  (force-dispatch? [_] true)
+
+  Object
+  (force-dispatch? [_] false)
+
+  nil
+  (force-dispatch? [_] false))
 
 (extend-type HttpServerExchange
   ring/RingRequest

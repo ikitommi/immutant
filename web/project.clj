@@ -28,6 +28,10 @@
                              [ring/ring-devel _]
                              [compojure _]
                              [clj-http _]
-                             [org.glassfish.jersey.media/jersey-media-sse _]]}}
+                             [criterium _]
+                             [org.glassfish.jersey.media/jersey-media-sse _]]}
+             :perf {:jvm-opts ^:replace ["-server"
+                                         "-Xmx4096m"
+                                         "-Dclojure.compiler.direct-linking=true"]}}
 
   :test-paths ["test" "test-integration"])
