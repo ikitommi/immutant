@@ -29,7 +29,7 @@
               WebsocketChannel$OnMessage]
              org.projectodd.wunderboss.web.undertow.async.UndertowHttpChannel
              [org.projectodd.wunderboss.web.undertow.async.websocket
-              UndertowWebsocket UndertowWebsocketChannel WebsocketInitHandler]
+              UndertowWebsocket UndertowWebsocketChannel WebsocketInitHandler DelegatingUndertowEndpoint]
              [java.io File InputStream]
              java.nio.charset.Charset))
 
@@ -175,10 +175,10 @@
       (if (.isInIoThread exchange)
         (if (force-dispatch? body)
           ;; dispatch to the XNIO worker pool to free up the IO thread
-          (.dispatch exchange (fn []
-                                (.startBlocking exchange)
-                                (action (.getOutputStream exchange))
-                                (.endExchange exchange)))
+          (.dispatch exchange ^Runnable (fn []
+                                          (.startBlocking exchange)
+                                          (action (.getOutputStream exchange))
+                                          (.endExchange exchange)))
           ;; use the async sender for speed on the IO thread
           (action (.getResponseSender exchange)))
         ;; .startBlocking has already been called, and
@@ -233,7 +233,7 @@
 (defn ^:internal ^HttpHandler create-http-handler [handler]
   (UndertowWebsocket/createHandler
     (reify WebsocketInitHandler
-      (shouldConnect [_ exchange endpoint-wrapper]
+      (^boolean shouldConnect [_ ^HttpServerExchange exchange ^DelegatingUndertowEndpoint endpoint-wrapper]
         (boolean
           (let [{:keys [body headers] :as r} (handler (ring/ring-request-map exchange
                                                         [:websocket? true]
