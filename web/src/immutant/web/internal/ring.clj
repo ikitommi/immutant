@@ -141,18 +141,16 @@
 
 (defn handle-write-error [request-map response {:keys [write-error-handler] :as response-map} f]
   (if write-error-handler
+(defn handle-write-error [request-map response {:keys [write-error-handler] :as response-map} e]
+  (when write-error-handler
+    ;; if the error isn't rethrown, the status will be
+    ;; whatever was set in the response map, so we
+    ;; try to set it to 500. This will fail if the body has
+    ;; been partially sent, hence the swallow
     (try
-      (f)
-      (catch Throwable e
-        ;; if the error isn't rethrown, the status will be
-        ;; whatever was set in the response map, so we
-        ;; try to set it to 500. This will fail if the body has
-        ;; been partially sent, hence the swallow
-        (try
-          (set-status response 500)
-          (catch Exception _))
-        (write-error-handler e request-map response-map)))
-    (f)))
+      (set-status response 500)
+      (catch Exception _))
+    (write-error-handler e request-map response-map)))
 
 (defn write-response
   "Set the status, write the headers and the content"

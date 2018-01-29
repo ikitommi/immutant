@@ -252,6 +252,8 @@
                                      [:server-exchange exchange]
                                      [:handler-type :undertow])]
           (if-let [response (handler ring-map)]
-            (ring/handle-write-error ring-map exchange response
-              #(ring/write-response exchange response))
+            (try
+              (ring/write-response exchange response)
+              (catch Exception e
+                (ring/handle-write-error ring-map exchange response e)))
             (throw (NullPointerException. "Ring handler returned nil"))))))))
