@@ -19,7 +19,6 @@
               [immutant.web.internal.ring    :as ring]
               [ring.middleware.session       :as ring-session])
     (:import clojure.lang.ISeq
-             io.undertow.io.Sender
              [io.undertow.server HttpHandler HttpServerExchange]
              [io.undertow.server.session Session SessionConfig SessionCookieConfig]
              [io.undertow.util HeaderMap Headers HttpString Sessions]
@@ -30,8 +29,7 @@
              org.projectodd.wunderboss.web.undertow.async.UndertowHttpChannel
              [org.projectodd.wunderboss.web.undertow.async.websocket
               UndertowWebsocket UndertowWebsocketChannel WebsocketInitHandler DelegatingUndertowEndpoint]
-             [java.io File InputStream]
-             java.nio.charset.Charset))
+             [java.io File InputStream]))
 
 (def ^{:tag SessionCookieConfig :private true} set-cookie-config!
   (memoize
@@ -165,13 +163,12 @@
   (header-map [exchange]              (.getResponseHeaders exchange))
   (resp-character-encoding [exchange] (or (.getResponseCharset exchange)
                                         hdr/default-encoding))
-  (write-sync-response
-    [exchange status headers body]
+  (write-sync-response [exchange status headers body]
     (let [action
           (fn [out]
             (when status (ring/set-status exchange status))
             (hdr/set-headers (ring/header-map exchange) headers)
-            (ring/write-body body out exchange))]
+            (ring/write-to out body exchange))]
       (if (.isInIoThread exchange)
         (if (force-dispatch? body)
           ;; dispatch to the XNIO worker pool to free up the IO thread
@@ -185,10 +182,6 @@
         ;; the exchange will end automatically when
         ;; the handler returns since we were directly dispatched
         (action (.getOutputStream exchange))))))
-
-(defmethod ring/write-body [String Sender]
-  [^String body ^Sender sender response]
-  (.send sender body (Charset/forName (ring/resp-character-encoding response))))
 
 (defmethod async/initialize-stream :undertow
   [request {:keys [on-open on-error on-close]}]
@@ -235,22 +228,22 @@
     (reify WebsocketInitHandler
       (^boolean shouldConnect [_ ^HttpServerExchange exchange ^DelegatingUndertowEndpoint endpoint-wrapper]
         (boolean
-          (let [{:keys [body headers] :as r} (handler (ring/ring-request-map exchange
-                                                        [:websocket? true]
-                                                        [:server-exchange exchange]
-                                                        [:handler-type :undertow]))]
+          (let [ring-map (ring/ring-request-map exchange
+                                                [:websocket? true]
+                                                [:server-exchange exchange]
+                                                [:handler-type :undertow])
+                {:keys [body headers]} (handler ring-map)]
             (hdr/set-headers (.getResponseHeaders exchange) headers)
             (when (instance? WebsocketChannel body)
-              (.setEndpoint endpoint-wrapper
-                (.endpoint ^WebsocketChannel body))
+              (.setEndpoint endpoint-wrapper (.endpoint ^WebsocketChannel body))
               true)))))
     (reify HttpHandler
-      (^void handleRequest [this ^HttpServerExchange exchange]
+      (^void handleRequest [_ ^HttpServerExchange exchange]
         (when-not (.isInIoThread exchange)
           (.startBlocking exchange))
         (let [ring-map (ring/ring-request-map exchange
-                                     [:server-exchange exchange]
-                                     [:handler-type :undertow])]
+                                              [:server-exchange exchange]
+                                              [:handler-type :undertow])]
           (if-let [response (handler ring-map)]
             (try
               (ring/write-response exchange response)

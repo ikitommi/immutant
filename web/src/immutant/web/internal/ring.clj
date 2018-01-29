@@ -19,7 +19,11 @@
               [immutant.web.internal.headers :as hdr]
               [immutant.internal.util        :refer [try-resolve]])
     (:import [java.io File InputStream OutputStream]
-             clojure.lang.PersistentHashMap))
+             clojure.lang.PersistentHashMap
+             [io.undertow.io Sender]
+             [clojure.lang ISeq]
+             [java.nio ByteBuffer]
+             [java.nio.channels Channels]))
 
 (defprotocol Session
   (attribute [session key])
@@ -109,38 +113,67 @@
   (write-sync-response [x status headers body])
   (resp-character-encoding [x]))
 
-(defmulti write-body
-          (fn [body out _]
-            (cond
-              (nil? body) nil
-              (seq? body) :seq
-              :else       [(type body) (type out)])))
+(defprotocol WriteBody
+  (write-body-sync [this outputstream exchange])
+  (write-body-async [this sender exchange]))
 
-(defmethod write-body :default [body _ _]
-  (throw (IllegalStateException. (str "Can't coerce body of type " (class body)))))
+(extend-protocol WriteBody
+  (Class/forName "[B")
+  (write-body-sync [body ^OutputStream os _]
+    (let [channel (Channels/newChannel os)]
+      (.write channel (ByteBuffer/wrap body))))
+  (write-body-async [body ^Sender sender _]
+    (.send sender (ByteBuffer/wrap body)))
 
-(defmethod write-body nil [_ _ _])
+  String
+  (write-body-sync [body ^OutputStream os exchange]
+    (.write os (.getBytes body ^String (resp-character-encoding exchange))))
+  (write-body-async [body ^Sender sender _]
+    (.send sender body))
 
-(defmethod write-body :seq
-  [body out response]
-  (doseq [fragment body]
-    (write-body fragment out response)))
+  ByteBuffer
+  (write-body-sync [body ^OutputStream os _]
+    (let [channel (Channels/newChannel os)]
+      (.write channel body)))
+  (write-body-async [body ^Sender sender _]
+    (.send sender body))
 
-(defmethod write-body [String OutputStream]
-  [^String body ^OutputStream os response]
-  (.write os (.getBytes body ^String (resp-character-encoding response))))
+  File
+  (write-body-sync [body ^OutputStream os _]
+    (io/copy body os))
 
-(defmethod write-body [File OutputStream]
-  [body ^OutputStream os _]
-  (io/copy body os))
+  ISeq
+  (write-body-sync [body os exchange]
+    (doseq [fragment body]
+      (write-body-sync fragment os exchange)))
 
-(defmethod write-body [InputStream OutputStream]
-  [^InputStream body ^OutputStream os _]
-  (with-open [body body]
-    (io/copy body os)))
+  InputStream
+  (write-body-sync [body ^OutputStream os _]
+    (with-open [body body]
+      (io/copy body os)))
 
-(defn handle-write-error [request-map response {:keys [write-error-handler] :as response-map} f]
-  (if write-error-handler
+  Object
+  (write-body-async [body _]
+    (throw (IllegalStateException. (str "Can't coerce body of type " (class body)))))
+  (write-body-sync [body _]
+    (throw (IllegalStateException. (str "Can't coerce body of type " (class body)))))
+
+  nil
+  (write-body-async [_ _])
+  (write-body-sync [_ _]))
+
+(defprotocol WriteTo
+  (write-to [this body exchange]))
+
+(extend-protocol WriteTo
+  Sender
+  (write-to [sender body exchange]
+    (write-body-async body sender exchange))
+
+  OutputStream
+  (write-to [os body exchange]
+    (write-body-sync body os exchange)))
+
 (defn handle-write-error [request-map response {:keys [write-error-handler] :as response-map} e]
   (when write-error-handler
     ;; if the error isn't rethrown, the status will be
@@ -154,12 +187,15 @@
 
 (defn write-response
   "Set the status, write the headers and the content"
-  [response {:keys [status headers body write-error-handler] :as response-map}]
-  (if (async/streaming-body? body)
-    (async/open-stream body response-map
-      (partial set-status response)
-      (partial hdr/set-headers (header-map response)))
-    (write-sync-response response status headers body)))
+  [exchange response-map]
+  (let [body (:body response-map)
+        headers (:headers response-map)
+        status (:status response-map)]
+    (if (async/streaming-body? body)
+      (async/open-stream body response-map
+                         (partial set-status exchange)
+                         (partial hdr/set-headers (header-map exchange)))
+      (write-sync-response exchange status headers body))))
 
 ;; ring 1.3.2 introduced a change that causes wrap-resource to break
 ;; in-container because it doesn't know how to handle vfs: urls. ring

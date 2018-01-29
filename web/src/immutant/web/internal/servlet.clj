@@ -122,8 +122,8 @@
     [response status headers body]
     (when status (ring/set-status response status))
     (hdr/set-headers (ring/header-map response) headers)
-    (ring/write-body body (.getOutputStream response) response))
-  
+    (ring/write-to (.getOutputStream response) body response))
+
   hdr/Headers
   (get-value [response ^String key]        (.getHeader response key))
   (set-header [response ^String key value] (.setHeader response key value))
