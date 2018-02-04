@@ -152,12 +152,6 @@
     (with-open [body body]
       (io/copy body os)))
 
-  Object
-  (write-body-async [body _]
-    (throw (IllegalStateException. (str "Can't coerce body of type " (class body)))))
-  (write-body-sync [body _]
-    (throw (IllegalStateException. (str "Can't coerce body of type " (class body)))))
-
   nil
   (write-body-async [_ _])
   (write-body-sync [_ _]))
