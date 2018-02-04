@@ -12,11 +12,11 @@
 ;; See the License for the specific language governing permissions and
 ;; limitations under the License.
 
-(defproject org.immutant/caching "3.0.0-SNAPSHOT"
+(defproject ikitommi/immutant-caching "3.0.0-SNAPSHOT"
   :description "Create, manage and manipulate Infinispan caches."
   :plugins [[lein-modules "0.3.11"]]
 
-  :dependencies [[org.immutant/core _]
+  :dependencies [[ikitommi/immutant-core _]
                  [org.projectodd.wunderboss/wunderboss-caching _]]
 
   :profiles {:dev

@@ -12,7 +12,7 @@
 ;; See the License for the specific language governing permissions and
 ;; limitations under the License.
 
-(defproject org.immutant/immutant-parent "3.0.0-SNAPSHOT"
+(defproject ikitommi/immutant-immutant-parent "3.0.0-SNAPSHOT"
   :description "Parent for all that is Immutant"
   :plugins [[lein-modules "0.3.11"]]
   :packaging "pom"
@@ -96,7 +96,7 @@
                         ;; org.projectodd.wunderboss  "1.x.incremental.321"
                         ;; org.projectodd.wunderboss  "0.13.2-SNAPSHOT"
 
-                        org.immutant               :version
+                        ikitommi                   :version
                         criterium                  "0.4.4"
                         fntest                     "2.0.8"}}
 

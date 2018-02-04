@@ -12,13 +12,13 @@
 ;; See the License for the specific language governing permissions and
 ;; limitations under the License.
 
-(defproject org.immutant/immutant "3.0.0-SNAPSHOT"
+(defproject ikitommi/immutant-immutant "3.0.0-SNAPSHOT"
   :description "A catch-all pom that brings in all Immutant libs."
   :plugins [[lein-modules "0.3.11"]]
   :packaging "pom"
 
-  :dependencies [[org.immutant/caching _]
-                 [org.immutant/messaging _]
-                 [org.immutant/scheduling _]
-                 [org.immutant/web _]
-                 [org.immutant/transactions _]])
+  :dependencies [[ikitommi/immutant-caching _]
+                 [ikitommi/immutant-messaging _]
+                 [ikitommi/immutant-scheduling _]
+                 [ikitommi/immutant-web _]
+                 [ikitommi/immutant-transactions _]])
