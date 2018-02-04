@@ -14,6 +14,7 @@
 
 (ns ^{:no-doc true} immutant.web.internal.undertow
     (:require [clojure.string                :as str]
+              [from.potemkin.collections     :as fpc]
               [immutant.web.async            :as async]
               [immutant.web.internal.headers :as hdr]
               [immutant.web.internal.ring    :as ring]
@@ -69,8 +70,7 @@
       (if-let [^HttpServerExchange exchange (:server-exchange request)]
         (let [response (handler
                          (assoc request
-                           ;; we assume the request map automatically derefs delays
-                           :session (delay (ring/ring-session (get-or-create-session exchange options)))))]
+                           :session (ring/ring-session (get-or-create-session exchange options))))]
           (when (contains? response :session)
             (if-let [data (:session response)]
               (when-let [session (get-or-create-session exchange)]
@@ -223,15 +223,32 @@
         (when on-message
           (on-message ch message))))))
 
+(fpc/def-derived-map HttpRequestMap [^HttpServerExchange exchange websocket?]
+  :server-port (ring/server-port exchange)
+  :server-name (ring/server-name exchange)
+  :remote-addr (ring/remote-addr exchange)
+  :uri (ring/uri exchange)
+  :query-string (ring/query-string exchange)
+  :scheme (ring/scheme exchange)
+  :request-method (ring/request-method exchange)
+  :headers (ring/headers exchange)
+  :content-type (ring/content-type exchange)
+  :content-length (ring/content-length exchange)
+  :character-encoding (ring/character-encoding exchange)
+  :ssl-client-cert (ring/ssl-client-cert exchange)
+  :body (ring/body exchange)
+  :context (ring/context exchange)
+  :path-info (ring/path-info exchange)
+  :server-exchange exchange
+  :handler-type :undertow
+  :websocket? websocket?)
+
 (defn ^:internal ^HttpHandler create-http-handler [handler]
   (UndertowWebsocket/createHandler
     (reify WebsocketInitHandler
       (^boolean shouldConnect [_ ^HttpServerExchange exchange ^DelegatingUndertowEndpoint endpoint-wrapper]
         (boolean
-          (let [ring-map (ring/ring-request-map exchange
-                                                [:websocket? true]
-                                                [:server-exchange exchange]
-                                                [:handler-type :undertow])
+          (let [ring-map (->HttpRequestMap exchange true)
                 {:keys [body headers]} (handler ring-map)]
             (hdr/set-headers (.getResponseHeaders exchange) headers)
             (when (instance? WebsocketChannel body)
@@ -241,9 +258,7 @@
       (^void handleRequest [_ ^HttpServerExchange exchange]
         (when-not (.isInIoThread exchange)
           (.startBlocking exchange))
-        (let [ring-map (ring/ring-request-map exchange
-                                              [:server-exchange exchange]
-                                              [:handler-type :undertow])]
+        (let [ring-map (->HttpRequestMap exchange false)]
           (if-let [response (handler ring-map)]
             (try
               (ring/write-response exchange response)
