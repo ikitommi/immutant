@@ -112,7 +112,7 @@
       (update-in options [:contexts server] conj (wboss/mounts options)))))
 
 (set-valid-options! run (-> (opts->set Web$CreateOption Web$RegisterOption)
-                          (conj :contexts)
+                          (conj :contexts) (conj :server)
                           (boolify :dispatch)
                           (clojure.set/union (-> (try-resolve 'immutant.web.undertow/options)
                                                meta

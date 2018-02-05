@@ -12,10 +12,10 @@
 ;; See the License for the specific language governing permissions and
 ;; limitations under the License.
 
-(defproject org.immutant/integs "2.1.11-SNAPSHOT"
+(defproject ikitommi/immutant-integs "3.0.0-SNAPSHOT"
   :plugins [[lein-modules "0.3.11"]]
-  :dependencies [[org.immutant/immutant _]
-                 [org.immutant/wildfly _]]
+  :dependencies [[ikitommi/immutant-immutant _]
+                 [ikitommi/immutant-wildfly _]]
   :aliases {"all" ^:replace ["do" "clean," "test"]}
   :modules {:parent nil}
   :main clojure.core/+                  ; immutant war build requires
@@ -58,7 +58,7 @@
              :cluster {:eval-in :leiningen ; because prj/read, lein-modules, hooks, etc
                        :modules {:parent ".."}
                        :main integs.cluster
-                       :dependencies [[org.immutant/fntest _]
+                       :dependencies [[ikitommi/immutant-fntest _]
                                       [clj-http _]
                                       [environ _]]
                        :plugins [[lein-environ "1.0.0"]]

@@ -43,6 +43,10 @@
                (.awaitShutdown h timeout)))
     h))
 
+(defn ^:no-doc set-server-options [^Undertow$Builder builder {:keys [always-set-keep-alive]}]
+  (cond-> builder
+          (some? always-set-keep-alive) (.setServerOption UndertowOptions/ALWAYS_SET_KEEP_ALIVE always-set-keep-alive)))
+
 (defn ^:no-doc tune
   "Return the passed tuning options with an Undertow$Builder instance
   set accordingly, mapped to :configuration in the return value"
@@ -52,6 +56,7 @@
     (-> options
       (assoc :configuration
         (cond-> builder
+          server                       (set-server-options server)
           io-threads                   (.setIoThreads io-threads)
           worker-threads               (.setWorkerThreads worker-threads)
           buffer-size                  (.setBufferSize buffer-size)

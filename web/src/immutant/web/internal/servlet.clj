@@ -122,8 +122,8 @@
     [response status headers body]
     (when status (ring/set-status response status))
     (hdr/set-headers (ring/header-map response) headers)
-    (ring/write-body body (.getOutputStream response) response))
-  
+    (ring/write-to (.getOutputStream response) body response))
+
   hdr/Headers
   (get-value [response ^String key]        (.getHeader response key))
   (set-header [response ^String key value] (.setHeader response key value))
@@ -200,8 +200,10 @@
                          [:servlet-response response]
                          [:servlet-context  (delay (.getServletContext ^HttpServlet this))]))]
         (if-let [result (if handler (handler ring-map) {:status 404})]
-          (ring/handle-write-error ring-map response result
-            #(ring/write-response response result))
+          (try
+            (ring/write-response response result)
+            (catch Exception e
+              (ring/handle-write-error ring-map response result e)))
           (throw (NullPointerException. "Ring handler returned nil")))))
     (init [^ServletConfig config]
       (let [^HttpServlet this this]

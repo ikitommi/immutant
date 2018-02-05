@@ -12,12 +12,12 @@
 ;; See the License for the specific language governing permissions and
 ;; limitations under the License.
 
-(defproject org.immutant/web "2.1.11-SNAPSHOT"
+(defproject ikitommi/immutant-web "3.0.0-SNAPSHOT"
   :description "Serve web requests using Ring handlers, Servlets, or Undertow HttpHandlers."
   :plugins [[lein-modules "0.3.11"]]
   :java-source-paths ["src"]
-  
-  :dependencies [[org.immutant/core _]
+
+  :dependencies [[ikitommi/immutant-core _]
                  [org.projectodd.wunderboss/wunderboss-web-undertow _]
                  [ring/ring-core _]]
 
@@ -28,6 +28,10 @@
                              [ring/ring-devel _]
                              [compojure _]
                              [clj-http _]
-                             [org.glassfish.jersey.media/jersey-media-sse _]]}}
+                             [criterium _]
+                             [org.glassfish.jersey.media/jersey-media-sse _]]}
+             :perf {:jvm-opts ^:replace ["-server"
+                                         "-Xmx4096m"
+                                         "-Dclojure.compiler.direct-linking=true"]}}
 
   :test-paths ["test" "test-integration"])

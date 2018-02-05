@@ -12,11 +12,11 @@
 ;; See the License for the specific language governing permissions and
 ;; limitations under the License.
 
-(defproject org.immutant/scheduling "2.1.11-SNAPSHOT"
+(defproject ikitommi/immutant-scheduling "3.0.0-SNAPSHOT"
   :description "Schedule jobs for execution in the future."
   :plugins [[lein-modules "0.3.11"]]
 
-  :dependencies [[org.immutant/core _]
+  :dependencies [[ikitommi/immutant-core _]
                  [org.projectodd.wunderboss/wunderboss-scheduling _]]
 
   :profiles {:dev {:dependencies [[clj-time _]]}})

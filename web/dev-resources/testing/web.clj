@@ -17,14 +17,22 @@
             [http.async.client :as http]
             [ring.util.response :refer [response]])
   (:import [javax.ws.rs.client ClientBuilder]
-           [org.glassfish.jersey.media.sse EventSource EventListener]))
+           [org.glassfish.jersey.media.sse EventSource EventListener]
+           [clojure.lang IFn]))
 
 (def cookies (atom nil))
 
 (defn handler [body]
   (fn [request] (response (if (fn? body) (body) body))))
 
+(defrecord Route [handler]
+  IFn
+  (invoke [_ request]
+    (handler request)))
+
 (def hello (handler "hello"))
+
+(def hello-record (->Route hello))
 
 (def file-response (handler (io/file (io/resource "public/foo.html"))))
 

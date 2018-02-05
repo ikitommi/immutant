@@ -54,7 +54,7 @@
       (.putAll (websocket-servlet-filter-map)))))
 
 (defn ^:internal mount [^Web server handler opts]
-  (let [hdlr (if (or (fn? handler)
+  (let [hdlr (if (or (ifn? handler)
                    (var? handler))
                (if (in-container?)
                  (create-servlet handler)

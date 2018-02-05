@@ -14,12 +14,12 @@
 
 (ns ^{:no-doc true} immutant.web.internal.undertow
     (:require [clojure.string                :as str]
+              [from.potemkin.collections     :as fpc]
               [immutant.web.async            :as async]
               [immutant.web.internal.headers :as hdr]
               [immutant.web.internal.ring    :as ring]
               [ring.middleware.session       :as ring-session])
     (:import clojure.lang.ISeq
-             io.undertow.io.Sender
              [io.undertow.server HttpHandler HttpServerExchange]
              [io.undertow.server.session Session SessionConfig SessionCookieConfig]
              [io.undertow.util HeaderMap Headers HttpString Sessions]
@@ -29,9 +29,8 @@
               WebsocketChannel$OnMessage]
              org.projectodd.wunderboss.web.undertow.async.UndertowHttpChannel
              [org.projectodd.wunderboss.web.undertow.async.websocket
-              UndertowWebsocket UndertowWebsocketChannel WebsocketInitHandler]
-             [java.io File InputStream]
-             java.nio.charset.Charset))
+              UndertowWebsocket UndertowWebsocketChannel WebsocketInitHandler DelegatingUndertowEndpoint]
+             [java.io File InputStream]))
 
 (def ^{:tag SessionCookieConfig :private true} set-cookie-config!
   (memoize
@@ -71,8 +70,7 @@
       (if-let [^HttpServerExchange exchange (:server-exchange request)]
         (let [response (handler
                          (assoc request
-                           ;; we assume the request map automatically derefs delays
-                           :session (delay (ring/ring-session (get-or-create-session exchange options)))))]
+                           :session (ring/ring-session (get-or-create-session exchange options))))]
           (when (contains? response :session)
             (if-let [data (:session response)]
               (when-let [session (get-or-create-session exchange)]
@@ -122,9 +120,24 @@
       "/"
       path-info)))
 
-(defn- force-dispatch? [body]
-  (let [c (class body)]
-    (some #{File InputStream ISeq} (conj (ancestors c) c))))
+(defprotocol ForceDispatch
+  (force-dispatch? [this]))
+
+(extend-protocol ForceDispatch
+  File
+  (force-dispatch? [_] true)
+
+  InputStream
+  (force-dispatch? [_] true)
+
+  ISeq
+  (force-dispatch? [_] true)
+
+  Object
+  (force-dispatch? [_] false)
+
+  nil
+  (force-dispatch? [_] false))
 
 (extend-type HttpServerExchange
   ring/RingRequest
@@ -150,30 +163,25 @@
   (header-map [exchange]              (.getResponseHeaders exchange))
   (resp-character-encoding [exchange] (or (.getResponseCharset exchange)
                                         hdr/default-encoding))
-  (write-sync-response
-    [exchange status headers body]
+  (write-sync-response [exchange status headers body]
     (let [action
           (fn [out]
             (when status (ring/set-status exchange status))
             (hdr/set-headers (ring/header-map exchange) headers)
-            (ring/write-body body out exchange))]
+            (ring/write-to out body exchange))]
       (if (.isInIoThread exchange)
         (if (force-dispatch? body)
           ;; dispatch to the XNIO worker pool to free up the IO thread
-          (.dispatch exchange (fn []
-                                (.startBlocking exchange)
-                                (action (.getOutputStream exchange))
-                                (.endExchange exchange)))
+          (.dispatch exchange ^Runnable (fn []
+                                          (.startBlocking exchange)
+                                          (action (.getOutputStream exchange))
+                                          (.endExchange exchange)))
           ;; use the async sender for speed on the IO thread
           (action (.getResponseSender exchange)))
         ;; .startBlocking has already been called, and
         ;; the exchange will end automatically when
         ;; the handler returns since we were directly dispatched
         (action (.getOutputStream exchange))))))
-
-(defmethod ring/write-body [String Sender]
-  [^String body ^Sender sender response]
-  (.send sender body (Charset/forName (ring/resp-character-encoding response))))
 
 (defmethod async/initialize-stream :undertow
   [request {:keys [on-open on-error on-close]}]
@@ -215,28 +223,45 @@
         (when on-message
           (on-message ch message))))))
 
+(fpc/def-derived-map HttpRequestMap [^HttpServerExchange exchange websocket?]
+  :server-port (ring/server-port exchange)
+  :server-name (ring/server-name exchange)
+  :remote-addr (ring/remote-addr exchange)
+  :uri (ring/uri exchange)
+  :query-string (ring/query-string exchange)
+  :scheme (ring/scheme exchange)
+  :request-method (ring/request-method exchange)
+  :headers (ring/headers exchange)
+  :content-type (ring/content-type exchange)
+  :content-length (ring/content-length exchange)
+  :character-encoding (ring/character-encoding exchange)
+  :ssl-client-cert (ring/ssl-client-cert exchange)
+  :body (ring/body exchange)
+  :context (ring/context exchange)
+  :path-info (ring/path-info exchange)
+  :server-exchange exchange
+  :handler-type :undertow
+  :websocket? websocket?)
+
 (defn ^:internal ^HttpHandler create-http-handler [handler]
   (UndertowWebsocket/createHandler
     (reify WebsocketInitHandler
-      (shouldConnect [_ exchange endpoint-wrapper]
+      (^boolean shouldConnect [_ ^HttpServerExchange exchange ^DelegatingUndertowEndpoint endpoint-wrapper]
         (boolean
-          (let [{:keys [body headers] :as r} (handler (ring/ring-request-map exchange
-                                                        [:websocket? true]
-                                                        [:server-exchange exchange]
-                                                        [:handler-type :undertow]))]
+          (let [ring-map (->HttpRequestMap exchange true)
+                {:keys [body headers]} (handler ring-map)]
             (hdr/set-headers (.getResponseHeaders exchange) headers)
             (when (instance? WebsocketChannel body)
-              (.setEndpoint endpoint-wrapper
-                (.endpoint ^WebsocketChannel body))
+              (.setEndpoint endpoint-wrapper (.endpoint ^WebsocketChannel body))
               true)))))
     (reify HttpHandler
-      (^void handleRequest [this ^HttpServerExchange exchange]
+      (^void handleRequest [_ ^HttpServerExchange exchange]
         (when-not (.isInIoThread exchange)
           (.startBlocking exchange))
-        (let [ring-map (ring/ring-request-map exchange
-                                     [:server-exchange exchange]
-                                     [:handler-type :undertow])]
+        (let [ring-map (->HttpRequestMap exchange false)]
           (if-let [response (handler ring-map)]
-            (ring/handle-write-error ring-map exchange response
-              #(ring/write-response exchange response))
+            (try
+              (ring/write-response exchange response)
+              (catch Exception e
+                (ring/handle-write-error ring-map exchange response e)))
             (throw (NullPointerException. "Ring handler returned nil"))))))))
