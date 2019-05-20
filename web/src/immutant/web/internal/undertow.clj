@@ -13,37 +13,37 @@
 ;; limitations under the License.
 
 (ns ^{:no-doc true} immutant.web.internal.undertow
-    (:require [clojure.string                :as str]
-              [from.potemkin.collections     :as fpc]
-              [immutant.web.async            :as async]
-              [immutant.web.internal.headers :as hdr]
-              [immutant.web.internal.ring    :as ring]
-              [ring.middleware.session       :as ring-session])
-    (:import clojure.lang.ISeq
-             [io.undertow.server HttpHandler HttpServerExchange]
-             [io.undertow.server.session Session SessionConfig SessionCookieConfig]
-             [io.undertow.util HeaderMap Headers HttpString Sessions]
-             [org.projectodd.wunderboss.web.async Channel
-              Channel$OnOpen Channel$OnClose Channel$OnError]
-             [org.projectodd.wunderboss.web.async.websocket WebsocketChannel
-              WebsocketChannel$OnMessage]
-             org.projectodd.wunderboss.web.undertow.async.UndertowHttpChannel
-             [org.projectodd.wunderboss.web.undertow.async.websocket
-              UndertowWebsocket UndertowWebsocketChannel WebsocketInitHandler DelegatingUndertowEndpoint]
-             [java.io File InputStream]))
+  (:require [clojure.string :as str]
+            [from.potemkin.collections :as fpc]
+            [immutant.web.async :as async]
+            [immutant.web.internal.headers :as hdr]
+            [immutant.web.internal.ring :as ring]
+            [ring.middleware.session :as ring-session])
+  (:import clojure.lang.ISeq
+           [io.undertow.server HttpHandler HttpServerExchange]
+           [io.undertow.server.session Session SessionConfig SessionCookieConfig]
+           [io.undertow.util HeaderMap Headers HttpString Sessions]
+           [org.projectodd.wunderboss.web.async Channel
+                                                Channel$OnOpen Channel$OnClose Channel$OnError]
+           [org.projectodd.wunderboss.web.async.websocket WebsocketChannel
+                                                          WebsocketChannel$OnMessage]
+           org.projectodd.wunderboss.web.undertow.async.UndertowHttpChannel
+           [org.projectodd.wunderboss.web.undertow.async.websocket
+            UndertowWebsocket UndertowWebsocketChannel WebsocketInitHandler DelegatingUndertowEndpoint]
+           [java.io File InputStream]))
 
 (def ^{:tag SessionCookieConfig :private true} set-cookie-config!
   (memoize
     (fn [^SessionCookieConfig config
-        {:keys [cookie-name]
-         {:keys [path domain max-age secure http-only]} :cookie-attrs}]
+         {:keys [cookie-name]
+          {:keys [path domain max-age secure http-only]} :cookie-attrs}]
       (cond-> config
-        cookie-name (.setCookieName cookie-name)
-        path        (.setPath path)
-        domain      (.setDomain domain)
-        max-age     (.setMaxAge max-age)
-        secure      (.setSecure secure)
-        http-only   (.setHttpOnly http-only)))))
+              cookie-name (.setCookieName cookie-name)
+              path (.setPath path)
+              domain (.setDomain domain)
+              max-age (.setMaxAge max-age)
+              secure (.setSecure secure)
+              http-only (.setHttpOnly http-only)))))
 
 (defn- get-or-create-session
   ([exchange]
@@ -54,11 +54,11 @@
        (.getAttachment exchange SessionConfig/ATTACHMENT_KEY)
        options))
    (-> exchange
-     Sessions/getOrCreateSession
-     (as-> session
-         (if options
-           (ring/set-session-expiry session timeout)
-           session)))))
+       Sessions/getOrCreateSession
+       (as-> session
+             (if options
+               (ring/set-session-expiry session timeout)
+               session)))))
 
 (defn wrap-undertow-session
   "Ring middleware to insert a :session entry into the request, its
@@ -141,28 +141,28 @@
 
 (extend-type HttpServerExchange
   ring/RingRequest
-  (server-port [exchange]        (-> exchange .getDestinationAddress .getPort))
-  (server-name [exchange]        (.getHostName exchange))
-  (remote-addr [exchange]        (-> exchange .getSourceAddress .getAddress .getHostAddress))
-  (uri [exchange]                (.getRequestURI exchange))
-  (query-string [exchange]       (let [qs (.getQueryString exchange)]
-                                   (if (= "" qs) nil qs)))
-  (scheme [exchange]             (-> exchange .getRequestScheme keyword))
-  (request-method [exchange]     (-> exchange .getRequestMethod .toString .toLowerCase keyword))
-  (content-type [exchange]       (-> exchange .getRequestHeaders (.getFirst Headers/CONTENT_TYPE)))
-  (content-length [exchange]     (.getRequestContentLength exchange))
+  (server-port [exchange] (-> exchange .getDestinationAddress .getPort))
+  (server-name [exchange] (.getHostName exchange))
+  (remote-addr [exchange] (-> exchange .getSourceAddress .getAddress .getHostAddress))
+  (uri [exchange] (.getRequestURI exchange))
+  (query-string [exchange] (let [qs (.getQueryString exchange)]
+                             (if (= "" qs) nil qs)))
+  (scheme [exchange] (-> exchange .getRequestScheme keyword))
+  (request-method [exchange] (-> exchange .getRequestMethod .toString .toLowerCase keyword))
+  (content-type [exchange] (-> exchange .getRequestHeaders (.getFirst Headers/CONTENT_TYPE)))
+  (content-length [exchange] (.getRequestContentLength exchange))
   (character-encoding [exchange] (.getRequestCharset exchange))
-  (headers [exchange]            (-> exchange .getRequestHeaders hdr/headers->map))
-  (body [exchange]               (when (.isBlocking exchange) (.getInputStream exchange)))
-  (context [exchange]            (.getResolvedPath exchange))
-  (path-info [exchange]          (path-info' exchange))
+  (headers [exchange] (-> exchange .getRequestHeaders hdr/headers->map))
+  (body [exchange] (when (.isBlocking exchange) (.getInputStream exchange)))
+  (context [exchange] (.getResolvedPath exchange))
+  (path-info [exchange] (path-info' exchange))
   (ssl-client-cert [_])
 
   ring/RingResponse
-  (set-status [exchange status]       (.setResponseCode exchange status))
-  (header-map [exchange]              (.getResponseHeaders exchange))
+  (set-status [exchange status] (.setResponseCode exchange status))
+  (header-map [exchange] (.getResponseHeaders exchange))
   (resp-character-encoding [exchange] (or (.getResponseCharset exchange)
-                                        hdr/default-encoding))
+                                          hdr/default-encoding))
   (write-sync-response [exchange status headers body]
     (let [action
           (fn [out]
@@ -261,7 +261,7 @@
         (let [ring-map (->HttpRequestMap exchange false)]
           (if-let [response (handler ring-map)]
             (try
-              (ring/write-response exchange response)
+              (ring/write-response response exchange)
               (catch Exception e
                 (ring/handle-write-error ring-map exchange response e)))
             (throw (NullPointerException. "Ring handler returned nil"))))))))

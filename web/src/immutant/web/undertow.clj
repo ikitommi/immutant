@@ -50,18 +50,18 @@
 (defn ^:no-doc tune
   "Return the passed tuning options with an Undertow$Builder instance
   set accordingly, mapped to :configuration in the return value"
-  [{:keys [configuration io-threads worker-threads buffer-size buffers-per-region direct-buffers?]
+  [{:keys [configuration server io-threads worker-threads buffer-size buffers-per-region direct-buffers?]
     :as options}]
   (let [^Undertow$Builder builder (or configuration (Undertow/builder))]
     (-> options
-      (assoc :configuration
-        (cond-> builder
-          server                       (set-server-options server)
-          io-threads                   (.setIoThreads io-threads)
-          worker-threads               (.setWorkerThreads worker-threads)
-          buffer-size                  (.setBufferSize buffer-size)
-          (not (nil? direct-buffers?)) (.setDirectBuffers direct-buffers?)))
-      (dissoc :io-threads :worker-threads :buffer-size :buffers-per-region :direct-buffers?))))
+        (assoc :configuration
+               (cond-> builder
+                       server (set-server-options server)
+                       io-threads (.setIoThreads io-threads)
+                       worker-threads (.setWorkerThreads worker-threads)
+                       buffer-size (.setBufferSize buffer-size)
+                       (not (nil? direct-buffers?)) (.setDirectBuffers direct-buffers?)))
+        (dissoc :io-threads :worker-threads :buffer-size :buffers-per-region :direct-buffers?))))
 
 (defn ^:no-doc listen
   "Return the passed listener-related options with an Undertow$Builder
@@ -73,13 +73,13 @@
     :as options}]
   (let [^Undertow$Builder builder (or configuration (Undertow/builder))]
     (-> options
-      (assoc :configuration
-        (cond-> builder
-          (and ssl-port ssl-context)       (.addHttpsListener ssl-port host ssl-context)
-          (and ssl-port (not ssl-context)) (.addHttpsListener ^int ssl-port ^String host ^"[Ljavax.net.ssl.KeyManager;" key-managers ^"[Ljavax.net.ssl.TrustManager;" trust-managers)
-          (and ajp-port)                   (.addAjpListener ajp-port host)
-          (and port)                       (.addHttpListener port host)))
-      (dissoc :ssl-port :ssl-context :key-managers :trust-managers :ajp-port))))
+        (assoc :configuration
+               (cond-> builder
+                       (and ssl-port ssl-context) (.addHttpsListener ssl-port host ssl-context)
+                       (and ssl-port (not ssl-context)) (.addHttpsListener ^int ssl-port ^String host ^"[Ljavax.net.ssl.KeyManager;" key-managers ^"[Ljavax.net.ssl.TrustManager;" trust-managers)
+                       (and ajp-port) (.addAjpListener ajp-port host)
+                       (and port) (.addHttpListener port host)))
+        (dissoc :ssl-port :ssl-context :key-managers :trust-managers :ajp-port))))
 
 (defn ^:no-doc client-auth
   "Possible values are :want or :need (:requested and :required are
@@ -88,13 +88,13 @@
   (if client-auth
     (let [^Undertow$Builder builder (or configuration (Undertow/builder))]
       (-> options
-        (assoc :configuration
-          (case client-auth
-            (:want :requested) (.setSocketOption builder
-                                 Options/SSL_CLIENT_AUTH_MODE SslClientAuthMode/REQUESTED)
-            (:need :required)  (.setSocketOption builder
-                                 Options/SSL_CLIENT_AUTH_MODE SslClientAuthMode/REQUIRED)))
-        (dissoc :client-auth)))
+          (assoc :configuration
+                 (case client-auth
+                   (:want :requested) (.setSocketOption builder
+                                                        Options/SSL_CLIENT_AUTH_MODE SslClientAuthMode/REQUESTED)
+                   (:need :required) (.setSocketOption builder
+                                                       Options/SSL_CLIENT_AUTH_MODE SslClientAuthMode/REQUIRED)))
+          (dissoc :client-auth)))
     options))
 
 (defn ^:no-doc http2
@@ -103,11 +103,11 @@
   (if http2?
     (let [^Undertow$Builder builder (or configuration (Undertow/builder))]
       (-> options
-        (assoc :configuration
-          (-> builder
-            (.setServerOption UndertowOptions/ENABLE_HTTP2 true)
-            (.setServerOption UndertowOptions/ENABLE_SPDY  true)))
-        (dissoc :http2?)))
+          (assoc :configuration
+                 (-> builder
+                     (.setServerOption UndertowOptions/ENABLE_HTTP2 true)
+                     (.setServerOption UndertowOptions/ENABLE_SPDY true)))
+          (dissoc :http2?)))
     (dissoc options :http2?)))
 
 (defn ^:no-doc ssl-context
@@ -116,8 +116,8 @@
   ommitted, the keystore is assumed to fulfill both roles"
   [{:keys [keystore key-password truststore trust-password] :as options}]
   (-> options
-    (assoc :ssl-context (keystore->ssl-context options))
-    (dissoc :keystore :key-password :truststore :trust-password)))
+      (assoc :ssl-context (keystore->ssl-context options))
+      (dissoc :keystore :key-password :truststore :trust-password)))
 
 (def options
   "Takes a map of Undertow-specific options and replaces them with an
@@ -166,18 +166,18 @@
    * :buffers-per-region - a number, defaults to 10
    * :direct-buffers? - boolean, defaults to true"
   (comp listen ssl-context client-auth tune http2
-    (partial coerce [:port :ajp-port :ssl-port :io-threads :worker-threads
-                     :buffer-size :buffers-per-region :direct-buffers? :http2?])
-    #(validate-options % options)
-    kwargs-or-map->map (fn [& x] x)))
+        (partial coerce [:port :ajp-port :ssl-port :io-threads :worker-threads
+                         :buffer-size :buffers-per-region :direct-buffers? :http2?])
+        #(validate-options % options)
+        kwargs-or-map->map (fn [& x] x)))
 
 ;;; take the valid options from the arglists of the composed functions
 (def ^:private valid-options
   (->> [#'listen #'ssl-context #'client-auth #'tune #'http2]
-    (map #(-> % meta :arglists ffirst :keys))
-    flatten
-    (map keyword)
-    set))
+       (map #(-> % meta :arglists ffirst :keys))
+       flatten
+       (map keyword)
+       set))
 (set-valid-options! options valid-options)
 
 (def ^:private non-wunderboss-options

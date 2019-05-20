@@ -12,7 +12,7 @@
 ;; See the License for the specific language governing permissions and
 ;; limitations under the License.
 
-(defproject ikitommi/immutant-wildfly "3.0.0-SNAPSHOT"
+(defproject ikitommi/immutant-wildfly "3.0.0-alpha3"
   :description "Utility functions only useful within a WildFly container."
   :plugins [[lein-modules "0.3.11"]]
 

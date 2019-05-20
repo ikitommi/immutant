@@ -12,7 +12,7 @@
 ;; See the License for the specific language governing permissions and
 ;; limitations under the License.
 
-(defproject ikitommi/immutant-web "3.0.0-SNAPSHOT"
+(defproject ikitommi/immutant-web "3.0.0-alpha3"
   :description "Serve web requests using Ring handlers, Servlets, or Undertow HttpHandlers."
   :plugins [[lein-modules "0.3.11"]]
   :java-source-paths ["src"]

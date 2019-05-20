@@ -13,17 +13,19 @@
 ;; limitations under the License.
 
 (ns ^{:no-doc true} immutant.web.internal.ring
-    (:require [from.potemkin                 :refer [def-map-type]]
-              [clojure.java.io               :as io]
-              [immutant.web.async            :as async]
-              [immutant.web.internal.headers :as hdr]
-              [immutant.internal.util        :refer [try-resolve]])
-    (:import [java.io File InputStream OutputStream]
-             clojure.lang.PersistentHashMap
-             [io.undertow.io Sender]
-             [clojure.lang ISeq]
-             [java.nio ByteBuffer]
-             [java.nio.channels Channels]))
+  (:require [from.potemkin :refer [def-map-type]]
+            [clojure.java.io :as io]
+            [immutant.web.async :as async]
+            [immutant.web.internal.headers :as hdr]
+            [immutant.internal.util :refer [try-resolve]])
+  (:import [java.io File InputStream OutputStream]
+           [io.undertow.server HttpServerExchange]
+           [org.projectodd.wunderboss.web.async HttpChannel]
+           clojure.lang.PersistentHashMap
+           [io.undertow.io Sender]
+           [clojure.lang ISeq]
+           [java.nio ByteBuffer]
+           [java.nio.channels Channels]))
 
 (defprotocol Session
   (attribute [session key])
@@ -46,26 +48,26 @@
 
 (def-map-type LazyMap [^java.util.Map m]
   (get [_ k default-value]
-    (if (.containsKey m k)
-      (let [v (.get m k)]
-        (if (delay? v)
-          @v
-          v))
-      default-value))
+       (if (.containsKey m k)
+         (let [v (.get m k)]
+           (if (delay? v)
+             @v
+             v))
+         default-value))
   (assoc [_ k v]
     (LazyMap.
       (assoc
-          (if (instance? PersistentHashMap m)
-            m
-            (PersistentHashMap/create m)) k v)))
-  (dissoc [_ k]
-    (LazyMap.
-      (dissoc
         (if (instance? PersistentHashMap m)
           m
-          (PersistentHashMap/create m)) k)))
+          (PersistentHashMap/create m)) k v)))
+  (dissoc [_ k]
+          (LazyMap.
+            (dissoc
+              (if (instance? PersistentHashMap m)
+                m
+                (PersistentHashMap/create m)) k)))
   (keys [_]
-    (keys m)))
+        (keys m)))
 
 (defprotocol RingRequest
   (server-port [x])
@@ -86,26 +88,26 @@
 
 (defn ring-request-map
   ([request & extra-entries]
-     (->LazyMap
-       (let [m (doto (java.util.HashMap. 24)
-                 (.put :server-port        (delay (server-port request)))
-                 (.put :server-name        (delay (server-name request)))
-                 (.put :remote-addr        (delay (remote-addr request)))
-                 (.put :uri                (delay (uri request)))
-                 (.put :query-string       (delay (query-string request)))
-                 (.put :scheme             (delay (scheme request)))
-                 (.put :request-method     (delay (request-method request)))
-                 (.put :headers            (delay (headers request)))
-                 (.put :content-type       (delay (content-type request)))
-                 (.put :content-length     (delay (content-length request)))
-                 (.put :character-encoding (delay (character-encoding request)))
-                 (.put :ssl-client-cert    (delay (ssl-client-cert request)))
-                 (.put :body               (delay (body request)))
-                 (.put :context            (delay (context request)))
-                 (.put :path-info          (delay (path-info request))))]
-         (doseq [[k v] extra-entries]
-           (.put m k v))
-         m))))
+   (->LazyMap
+     (let [m (doto (java.util.HashMap. 24)
+               (.put :server-port (delay (server-port request)))
+               (.put :server-name (delay (server-name request)))
+               (.put :remote-addr (delay (remote-addr request)))
+               (.put :uri (delay (uri request)))
+               (.put :query-string (delay (query-string request)))
+               (.put :scheme (delay (scheme request)))
+               (.put :request-method (delay (request-method request)))
+               (.put :headers (delay (headers request)))
+               (.put :content-type (delay (content-type request)))
+               (.put :content-length (delay (content-length request)))
+               (.put :character-encoding (delay (character-encoding request)))
+               (.put :ssl-client-cert (delay (ssl-client-cert request)))
+               (.put :body (delay (body request)))
+               (.put :context (delay (context request)))
+               (.put :path-info (delay (path-info request))))]
+       (doseq [[k v] extra-entries]
+         (.put m k v))
+       m))))
 
 (defprotocol RingResponse
   (header-map [x])
@@ -179,17 +181,25 @@
       (catch Exception _))
     (write-error-handler e request-map response-map)))
 
-(defn write-response
-  "Set the status, write the headers and the content"
-  [exchange response-map]
-  (let [body (:body response-map)
-        headers (:headers response-map)
-        status (:status response-map)]
-    (if (async/streaming-body? body)
-      (async/open-stream body response-map
-                         (partial set-status exchange)
-                         (partial hdr/set-headers (header-map exchange)))
-      (write-sync-response exchange status headers body))))
+(defrecord Response [status headers body])
+
+(defprotocol ResponseWriter
+  (write-response [this exchange]))
+
+(extend-protocol ResponseWriter
+  HttpServerExchange
+  (write-response [_ _])
+
+  Object
+  (write-response [response-map exchange]
+    (let [body (:body response-map)
+          headers (:headers response-map)
+          status (:status response-map)]
+      (if (async/streaming-body? body)
+        (async/open-stream body response-map
+                           (partial set-status exchange)
+                           (partial hdr/set-headers (header-map exchange)))
+        (write-sync-response exchange status headers body)))))
 
 ;; ring 1.3.2 introduced a change that causes wrap-resource to break
 ;; in-container because it doesn't know how to handle vfs: urls. ring
@@ -206,5 +216,5 @@
            {:content (.getInputStream conn)
             :content-length (.getContentLength conn)
             :last-modified (-> vfile
-                             .getPhysicalFile
-                             ring.util.io/last-modified-date)})))))
+                               .getPhysicalFile
+                               ring.util.io/last-modified-date)})))))

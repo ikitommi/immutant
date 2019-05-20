@@ -12,7 +12,7 @@
 ;; See the License for the specific language governing permissions and
 ;; limitations under the License.
 
-(defproject ikitommi/immutant-immutant "3.0.0-SNAPSHOT"
+(defproject ikitommi/immutant-immutant "3.0.0-alpha3"
   :description "A catch-all pom that brings in all Immutant libs."
   :plugins [[lein-modules "0.3.11"]]
   :packaging "pom"

@@ -14,11 +14,14 @@
 
 (ns immutant.web
   "Serve web requests using Ring handlers, Servlets, or Undertow HttpHandlers"
+  (:refer-clojure :exclude [constantly])
   (:require [immutant.internal.options :refer [boolify opts->set set-valid-options!
                                                validate-options extract-options]]
-            [immutant.internal.util    :refer [kwargs-or-map->map try-resolve]]
-            [immutant.web.internal.wunderboss :as wboss])
-  (:import [org.projectodd.wunderboss.web Web Web$CreateOption Web$RegisterOption]))
+            [immutant.internal.util :refer [kwargs-or-map->map try-resolve]]
+            [immutant.web.internal.wunderboss :as wboss]
+            [immutant.web.internal.ring :as ring])
+  (:import [org.projectodd.wunderboss.web Web Web$CreateOption Web$RegisterOption]
+           [io.undertow.server HttpServerExchange]))
 
 (defn run
   "Runs `handler` with the given `options`.
@@ -102,21 +105,21 @@
   [handler & options]
   (let [undertow-options-maybe (try-resolve 'immutant.web.undertow/options-maybe)
         options (-> options
-                  kwargs-or-map->map
-                  (validate-options run)
-                  wboss/available-port
-                  (->> (merge wboss/create-defaults wboss/register-defaults))
-                  (cond-> undertow-options-maybe undertow-options-maybe))]
+                    kwargs-or-map->map
+                    (validate-options run)
+                    wboss/available-port
+                    (->> (merge wboss/create-defaults wboss/register-defaults))
+                    (cond-> undertow-options-maybe undertow-options-maybe))]
     (let [server (wboss/server options)]
       (wboss/mount server handler options)
       (update-in options [:contexts server] conj (wboss/mounts options)))))
 
 (set-valid-options! run (-> (opts->set Web$CreateOption Web$RegisterOption)
-                          (conj :contexts) (conj :server)
-                          (boolify :dispatch)
-                          (clojure.set/union (-> (try-resolve 'immutant.web.undertow/options)
-                                               meta
-                                               :valid-options))))
+                            (conj :contexts) (conj :server)
+                            (boolify :dispatch)
+                            (clojure.set/union (-> (try-resolve 'immutant.web.undertow/options)
+                                                   meta
+                                                   :valid-options))))
 
 (defn stop
   "Stops a running handler.
@@ -130,8 +133,8 @@
   Returns true if a handler was actually removed."
   [& options]
   (let [opts (-> options
-               kwargs-or-map->map
-               (validate-options run "stop"))
+                 kwargs-or-map->map
+                 (validate-options run "stop"))
         contexts (:contexts opts {(wboss/server opts) [(wboss/mounts opts)]})
         stopped (some boolean (doall (for [[^Web s os] contexts, o os]
                                        (.unregister s (extract-options o Web$RegisterOption)))))]
@@ -148,11 +151,25 @@
    opens the app in a browser. Supports the same options as [[run]]."
   [handler & options]
   (let [handler (if (and (symbol? handler)
-                      (not (get &env handler))
-                      (resolve handler))
+                         (not (get &env handler))
+                         (resolve handler))
                   `(var ~handler)
                   handler)]
     `(wboss/run-dmc* run ~handler ~@options)))
+
+(defn dispatch [handler]
+  (fn [req]
+    (let [exchange ^HttpServerExchange (:server-exchange req)]
+      (if (.isInIoThread exchange)
+        (.dispatch exchange ^Runnable ^:once (fn []
+                                               (.startBlocking exchange)
+                                               (ring/write-response (handler req) exchange)
+                                               (.endExchange exchange)))
+        (handler req)))))
+
+(defn constantly [handler]
+  (let [response (as-> (handler {}) $ (if (map? $) (ring/map->Response $)))]
+    (clojure.core/constantly response)))
 
 (defn server
   "Returns the web server instance associated with a particular set of
@@ -174,8 +191,8 @@
    cause multiple servers to be created."
   [& options]
   (let [options (->> options
-                  kwargs-or-map->map
-                  (merge wboss/create-defaults wboss/register-defaults))
+                     kwargs-or-map->map
+                     (merge wboss/create-defaults wboss/register-defaults))
         servers (keys (:contexts options {(wboss/server options) nil}))]
     (if (= 1 (count servers))
       (first servers)

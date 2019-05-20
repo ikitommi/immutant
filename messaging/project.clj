@@ -12,7 +12,7 @@
 ;; See the License for the specific language governing permissions and
 ;; limitations under the License.
 
-(defproject ikitommi/immutant-messaging "3.0.0-SNAPSHOT"
+(defproject ikitommi/immutant-messaging "3.0.0-alpha3"
   :description "Easily publish and receive messages containing any type of nested data structure to dynamically-created queues and topics."
   :plugins [[lein-modules "0.3.11"]]
 
