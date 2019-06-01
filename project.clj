@@ -12,7 +12,7 @@
 ;; See the License for the specific language governing permissions and
 ;; limitations under the License.
 
-(defproject ikitommi/immutant-immutant-parent "3.0.0-alpha3"
+(defproject ikitommi/immutant-immutant-parent "3.0.0-alpha4"
   :description "Parent for all that is Immutant"
   :plugins [[lein-modules "0.3.11"]]
   :packaging "pom"

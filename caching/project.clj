@@ -12,7 +12,7 @@
 ;; See the License for the specific language governing permissions and
 ;; limitations under the License.
 
-(defproject ikitommi/immutant-caching "3.0.0-alpha3"
+(defproject ikitommi/immutant-caching "3.0.0-alpha4"
   :description "Create, manage and manipulate Infinispan caches."
   :plugins [[lein-modules "0.3.11"]]
 

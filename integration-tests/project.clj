@@ -12,7 +12,7 @@
 ;; See the License for the specific language governing permissions and
 ;; limitations under the License.
 
-(defproject ikitommi/immutant-integs "3.0.0-alpha3"
+(defproject ikitommi/immutant-integs "3.0.0-alpha4"
   :plugins [[lein-modules "0.3.11"]]
   :dependencies [[ikitommi/immutant-immutant _]
                  [ikitommi/immutant-wildfly _]]
