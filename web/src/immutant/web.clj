@@ -21,6 +21,7 @@
             [immutant.web.internal.wunderboss :as wboss]
             [immutant.web.internal.ring :as ring])
   (:import [org.projectodd.wunderboss.web Web Web$CreateOption Web$RegisterOption]
+	          [io.undertow.util SameThreadExecutor]
            [io.undertow.server HttpServerExchange]))
 
 (defn run
@@ -157,14 +158,30 @@
                   handler)]
     `(wboss/run-dmc* run ~handler ~@options)))
 
+(defn async [f]
+  (fn [request]
+    (let [exchange ^HttpServerExchange (:server-exchange request)]
+      (.startBlocking exchange)
+      (.dispatch
+        exchange 
+        SameThreadExecutor/INSTANCE
+        ^Runnable (^:once fn* []
+                    (f request
+                       (fn [response]
+                         (ring/write-response response exchange)
+                         (.endExchange exchange))
+                       (fn [response]
+                         (ring/write-response response exchange)
+                         (.endExchange exchange))))))))
+
 (defn dispatch [handler]
   (fn [req]
     (let [exchange ^HttpServerExchange (:server-exchange req)]
       (if (.isInIoThread exchange)
-        (.dispatch exchange ^Runnable ^:once (fn []
-                                               (.startBlocking exchange)
-                                               (ring/write-response (handler req) exchange)
-                                               (.endExchange exchange)))
+        (.dispatch exchange ^Runnable (^:once fn* []
+                                        (.startBlocking exchange)
+                                        (ring/write-response (handler req) exchange)
+                                        (.endExchange exchange)))
         (handler req)))))
 
 (defn constantly [handler]
