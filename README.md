@@ -1,3 +1,7 @@
+# Status
+
+Work will continue at [pohjavirta](https://github.com/metosin/pohjavirta).
+
 # Immutant [![Build Status](https://travis-ci.org/immutant/immutant.svg?branch=thedeuce)](https://travis-ci.org/immutant/immutant)
 
 Immutant is an integrated suite of libraries providing commodity
